@@ -1,8 +1,8 @@
 import streamlit as st
 import torch
 import torch.nn as nn
+import timm
 import torchvision.transforms as transforms
-import torchvision.models as models
 from PIL import Image
 import pandas as pd
 import plotly.express as px
@@ -10,31 +10,35 @@ from collections import Counter
 import io
 
 # ─────────────────────────────────────────────
-#  Clases y colores del modelo de rosas
+#  Clases y colores (detectados de tu .pth)
 # ─────────────────────────────────────────────
-CLASES_DEFAULT = ['Black Spot', 'Fresh Leaf', 'Insectos', 'Mildew', 'Mosaico', 'Roya']
+CLASES_DEFAULT  = ['Black Spot', 'Fresh Leaf', 'Insectos', 'Mildew', 'Mosaico', 'Roya']
 IMG_SIZE_DEFAULT = 300
 
 COLORES_CLASES = {
-    'Black Spot':  '#e74c3c',
-    'Fresh Leaf':  '#2ecc71',
-    'Insectos':    '#f39c12',
-    'Mildew':      '#9b59b6',
-    'Mosaico':     '#3498db',
-    'Roya':        '#e67e22',
+    'Black Spot': '#e74c3c',
+    'Fresh Leaf': '#2ecc71',
+    'Insectos':   '#f39c12',
+    'Mildew':     '#9b59b6',
+    'Mosaico':    '#3498db',
+    'Roya':       '#e67e22',
 }
 
 
 def cargar_modelo(ruta_pth):
+    """
+    Carga el modelo guardado con timm (EfficientNet-B3).
+    Formato del checkpoint: { model_state, classes, img_size, epoch, val_acc }
+    """
     checkpoint = torch.load(ruta_pth, map_location="cpu")
     clases   = checkpoint.get("classes",  CLASES_DEFAULT)
     img_size = checkpoint.get("img_size", IMG_SIZE_DEFAULT)
 
-    modelo = models.efficientnet_b3(weights=None)
-    in_features = modelo.classifier[1].in_features
-    modelo.classifier = nn.Sequential(
-        nn.Dropout(p=0.3, inplace=True),
-        nn.Linear(in_features, len(clases)),
+    # timm — misma arquitectura que usaste en Kaggle
+    modelo = timm.create_model(
+        "efficientnet_b3",
+        pretrained=False,
+        num_classes=len(clases),
     )
     modelo.load_state_dict(checkpoint["model_state"])
     modelo.eval()
@@ -70,7 +74,7 @@ st.set_page_config(
 st.markdown("""
     <h1 style='text-align:center;'>🌹 Diagnóstico de Enfermedades en Rosas</h1>
     <p style='text-align:center; color:gray;'>
-        Sube hasta 500 imágenes — modelo EfficientNet-B3 · Precisión 99.88%
+        Sube hasta 500 imágenes — EfficientNet-B3 · Precisión 99.88%
     </p><hr>
 """, unsafe_allow_html=True)
 
@@ -87,6 +91,8 @@ with st.sidebar:
             f"border-radius:12px;font-size:0.85em;'>{c}</span> ",
             unsafe_allow_html=True,
         )
+    st.markdown("---")
+    st.caption("Precisión del modelo: **99.88%**")
 
 # ── Carga del modelo ──────────────────────────
 modelo_cargado  = None
@@ -115,7 +121,7 @@ if len(archivos) > 500:
     st.warning("⚠️ Solo se procesarán las primeras 500 imágenes.")
     archivos = archivos[:500]
 
-# ── Botón de análisis ─────────────────────────
+# ── Análisis ──────────────────────────────────
 if archivos and modelo_cargado:
     if st.button("🚀 Analizar imágenes", type="primary", use_container_width=True):
 
